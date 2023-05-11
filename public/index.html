@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>My Minecraft Server</title>
+  <link href="style.css" rel="stylesheet" type="text/css"/>
+</head>
+<body>
+  <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTA4NDc2ZjhjYzc0OTAwNGRiMzAwMjYwZTQ2ZDY4MWI4OTIyYjJiMiZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/r8GMmlV8qGrfZ3txfX/giphy.gif">
+
+  <main>
+    <h1>Minecraft Server</h1>
+    <div id="status" class="unknown">The server is currently:</div>
+    <div id="address" title="Copy server address to clipboard" onclick="copyContent()">vviseguy.click:25565</div>
+    <p>Minecraft Java Edition v. 1.19.4</p>
+    <footer>
+      <div>
+        <form>
+          <input type="text" id="message" placeholder="Type a message">
+          <button type="submit">Send</button>
+        </form>
+        <div id="messages"></div>
+      </div>
+    </footer>
+  </main>
+  
+  <script>
+    let name = "Online Client";
+    let text = document.querySelector("#address").innerHTML;
+    const copyContent = async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert("Server Address copied to clipboard!");
+        console.log('Content copied to clipboard');
+      } catch (err) {
+        console.error('Failed to copy: ', err);
+      }
+    }
+
+    async function checkServerStatus(){
+      await fetch('/status', {method: 'GET'})
+        .then((res) => res.json())
+        .then((json) => {
+          const status = json.status?"active":"inactive";
+          console.log(`server status: "${status}"`);
+          updateDisplay(status);
+        })
+        .catch(() => {
+            updateDisplay("unknown");
+            console.log("Failed status retrieval");
+        });
+    }
+    async function getName(){
+      await fetch('/define', {method: 'GET'})
+        .then((res) => res.json())
+        .then((json) => {
+          if (name === "Online Client"){
+            addMessage("Sending messages as \"" + json.name + "\"");
+          }
+          name = json.name;
+        })
+        .catch(() => {
+            console.log("Failed name retrieval");
+        });
+    }
+
+    function updateDisplay(status){
+      const statusElement = document.getElementById("status");
+      const footerElement = document.querySelector("footer");
+      if(status === "active"){
+        statusElement.classList.add("active");
+        statusElement.classList.remove("unknown");
+        // footerElement.classList.remove("hidden");
+      } 
+      else if(status === "unknown"){
+        statusElement.classList.remove("active");
+        statusElement.classList.add("unknown");
+      }
+      else {
+        statusElement.classList.remove("active");
+        statusElement.classList.remove("unknown");
+        // footerElement.classList.add("hidden");
+      }
+    }
+
+    gameLoop = setInterval(checkServerStatus, 5000); // check whether the minecraft srver is running every 5 seconds
+    checkServerStatus();
+
+    // const socket = new WebSocket(`ws://${window.location.host.match(/^[^:]*/)[0]}:25567`);
+    // const socket = new WebSocket(`ws://localhost:25567`);
+    const socket = new WebSocket(`wss://minecraft.vviseguy.click`);
+
+
+    const messagesDiv = document.getElementById('messages');
+    const messageInput = document.getElementById('message');
+
+    socket.addEventListener('open', (event) => {
+      getName();
+      console.log('WebSocket connected');
+    });
+    socket.addEventListener('close', (event) => {
+        console.log('WebSocket disconnected');
+    });
+    function addMessage(message){
+        const messageDiv = document.createElement('div');
+        messageDiv.textContent = `${message}`;
+        messagesDiv.appendChild(messageDiv);
+        updateScrollToBottom();
+    }
+    socket.addEventListener('message', (event) => {
+        addMessage(event.data);
+    });
+
+    document.querySelector('form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const message = "<"+name+"> " + messageInput.value.trim();
+        if (message) {
+            socket.send(message);
+            messageInput.value = '';
+        }
+    });
+
+    function updateScrollToBottom(){
+      var element = document.getElementById("messages");
+      element.scrollTop = element.scrollHeight;
+  }
+  </script>
+
+</body>
+
+</html>
