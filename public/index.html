@@ -26,7 +26,6 @@
   </main>
   
   <script>
-    let name = "Online Client";
     let text = document.querySelector("#address").innerHTML;
     const copyContent = async () => {
       try {
@@ -51,19 +50,7 @@
             console.log("Failed status retrieval");
         });
     }
-    async function getName(){
-      await fetch('/define', {method: 'GET'})
-        .then((res) => res.json())
-        .then((json) => {
-          if (name === "Online Client"){
-            addMessage("Sending messages as \"" + json.name + "\"");
-          }
-          name = json.name;
-        })
-        .catch(() => {
-            console.log("Failed name retrieval");
-        });
-    }
+    
 
     function updateDisplay(status){
       const statusElement = document.getElementById("status");
@@ -96,7 +83,6 @@
     const messageInput = document.getElementById('message');
 
     socket.addEventListener('open', (event) => {
-      getName();
       console.log('WebSocket connected');
     });
     socket.addEventListener('close', (event) => {
@@ -114,7 +100,7 @@
 
     document.querySelector('form').addEventListener('submit', (event) => {
         event.preventDefault();
-        const message = "<"+name+"> " + messageInput.value.trim();
+        const message = messageInput.value.trim();
         if (message) {
             socket.send(message);
             messageInput.value = '';

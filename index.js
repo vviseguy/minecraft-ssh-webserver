@@ -22,7 +22,8 @@ const port = process.argv.length > 2 ? process.argv[2] : 4100;
 
 let wss = null;
 
-
+const REUSE_NAMES_DELAY_MS = 10000; // negative numbers do not permit the name to be reused
+let namesToReuse = ["The First Spinjitzu Master"];
 const names = {
   "Mr. Incredible":0,
   "Elastigirl":0, 
@@ -46,6 +47,8 @@ const names = {
   "Stratogale":0,
   "Dynaguy":0
 };
+let clients = new Map();
+// const example_client = wc:"name"
 
 // JSON body parsing using built-in middleware
 app.use(express.json());
@@ -58,9 +61,6 @@ app.get("/status",(req, res) => {
   return res.send({status:mcHostSocket !== null});
 });
 
-app.get("/define",(req, res) => {
-  return res.send({name: assignName()});
-});
 
 // Return the application's default page if the path is unknown
 app.use((_req, res) => {
@@ -80,8 +80,12 @@ httpService.on('upgrade', (request, socket, head) => {
 });
 
 wss.on('connection', (ws) => {
-
+  const ws_name = assignName();
+  sendMessageToWebClients(ws_name + " joined the chat.");
+  clients.set(ws, {name: ws_name});
+  ws.send("Sending messages as " + ws_name);
   numWebClients++;
+  
   if (tryConnectionTimeout == null) tryConnection();
   console.log('WebSocket client connected');
 
@@ -92,35 +96,45 @@ wss.on('connection', (ws) => {
   }
 
   ws.on('message', (message) => {
-    console.log(`Received message: ${message}`);
+    const full_message = "<" + clients.get(ws).name + "> " + message.toString();
+    console.log(`Received message: ${message} from ${clients.get(ws).name}`);
     
     if (mcHostSocket !== null){
       // Echo the message to the minecraft server websocket
-      mcHostSocket.send(message);
+      mcHostSocket.send(full_message);
     }
     // Echo to all web clients
-    sendMessageToWebClients(message.toString());
+    sendMessageToWebClients(full_message);
   });
 
   ws.on('close', () => {
+    const ws_name = clients.get(ws).name;
+
+    // set delay for reusing the name
+    if (REUSE_NAMES_DELAY_MS >= 0) setTimeout(() => {namesToReuse.push(ws_name)}, REUSE_NAMES_DELAY_MS);
+
     numWebClients--;
+    clients.delete(ws);
     console.log('WebSocket client disconnected');
     if (numWebClients == 0) clearTimeout(tryConnectionTimeout);
+    sendMessageToWebClients(ws_name + " left the chat.");
   });
 });
 
 
 
 function sendMessageToWebClients(message){
-  wss.clients.forEach((client) => {
+  for (const client of clients.keys()){
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);
     }
-  });
+  }
 }
 
 
 function assignName(){
+  if (namesToReuse.length > 0) return namesToReuse.pop();
+
   const name = Object.keys(names)[Math.random() * Object.keys(names).length << 0];
   names[name]++;
   if (names[name] > 1) return name + " " + names[name];
